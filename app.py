@@ -5,7 +5,6 @@ from code_class import Code
 from helper_funcs import ndarr_to_str, str_to_ndarr, add_noise
 
 
-
 G = np.array([
     [1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0],
     [0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0],
@@ -17,7 +16,7 @@ G = np.array([
 ], dtype=int)
 
 mod = 2
-code = Code(G, mod, verbose=False)
+code = Code(G, mod, verbose=False, compute_coset_leader=False)
 
 
 ''' CAN ONLY HANDLE ENGLISH ALPHABET AND SPACES (7 bit chars ASCII) '''

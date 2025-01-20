@@ -3,12 +3,17 @@ from mod_class import Mod
 import json
 from gauss import gauss_elimination_inverse_mod
 import itertools
+import sys
+from math import floor
+from scipy.special import binom
+
 
 class Code:
     def __init__(self, generating_matrix: np.ndarray, prime: int, compute_coset_leader = True, verbose = False):
 
         self.prime = prime
-        self.G = np.array([[Mod(int(value), self.prime) for value in row] for row in generating_matrix])
+        if not isinstance(generating_matrix[0][0], Mod):
+            self.G = np.array([[Mod(int(value), self.prime) for value in row] for row in generating_matrix])
         (self.m, self.n) = np.shape(self.G)
         self.verbose = verbose
 
@@ -16,6 +21,11 @@ class Code:
             print(f"CODE:\n [{self.m}x{self.n}] mod {self.prime}\n")
             print("GENERATING MATRIX BEFORE NORMALIZING:")
             print(self.G, "\n")
+
+        arr = np.array([[val.a for val in row] for row in self.G[:,:self.m]])
+        print("a", arr)
+        arr_inv = np.linalg.inv(arr)
+        print(arr_inv)
         self.normalize_gen_matrix()
 
         if verbose:
@@ -25,7 +35,7 @@ class Code:
         self.create_control_matrix()
 
         if verbose:
-            print("CREATED CONTROL MATRIX:")
+            print("CONTROL MATRIX:")
             print(self.H, "\n")
 
         self.coset_leaders = {}
@@ -37,6 +47,15 @@ class Code:
         else:
             with open('data/coset_leader.json', 'r') as file:
                 self.coset_leaders = json.load(file)
+
+        self.seperation = self.compute_seperation()
+        if verbose:
+            print(f"SEPERATION:\n{self.seperation}\n")
+
+        self.pack_density = self.compute_pack_density()
+        if verbose:
+            print(f"PACKING DENSITY\n{int(self.pack_density*100)}%")
+
 
     # make gen matrix of type [I | A]
     def normalize_gen_matrix(self):
@@ -81,6 +100,19 @@ class Code:
         except KeyError:
             return None
         
+    def compute_seperation(self):
+        points =  [[Mod(value, self.prime) for value in point] for point in list(itertools.product(range(self.prime), repeat=self.m))]
+        all_weigths = [self.weight(point @ self.G) for point in points if self.weight(point @ self.G) != 0]
+        return min(all_weigths)
+    
+    def compute_pack_density(self):
+        amount_of_words = self.prime**self.m
+        space = self.prime**self.n
+        circle_sum = 0
+        for i in range(floor((self.seperation-1)/2) + 1):
+            circle_sum += binom(self.n, i)*(self.prime-1)**i
+        return (amount_of_words*circle_sum)/space
+
     def weight(self, point: np.ndarray) -> int:
         return sum([val.a for val in point])
 
@@ -109,11 +141,44 @@ class Code:
     
 class Hamming_Code(Code):
 
-    def __init__(self, r: int, compute_coset_leader = False, verbose = False):
-        self.r = r
-        super().__init__()
+    def __init__(self, size: list[int, int], prime: int, compute_coset_leader = True, verbose = False):
+        self.prime = prime
+        self.m = size[0]
+        self.n = size[1]
+        if 2**(self.n-self.m)-1 != self.n:
+            sys.exit("Incorrect [m, n] values fo hamming code. Must satisfy 2^(n-m) - 1 = n") 
+
+        self.gen_hamming_gen_matrix()
+
+        super().__init__(self.G, self.prime, compute_coset_leader=compute_coset_leader, verbose=verbose)
+
+
     
     def gen_hamming_gen_matrix(self):
-        pass
+        syndromes =  [[Mod(value, self.prime) for value in point] for point in list(itertools.product(range(self.prime), repeat=self.n-self.m))]
+        a = -np.array([syndrome for syndrome in syndromes if self.weight(syndrome)>1])
+
+        identity = np.array([[Mod(1 if i == j else 0, self.prime) for j in range(self.m)] for i in range(self.m)], dtype=Mod)
+        self.G = np.hstack((identity, a))
 
 
+class Reed_Muller_code(Code):
+
+    def __init__(self, size: int, prime: int, compute_coset_leader = True, verbose = False):
+        self.prime = prime
+        start_gen_matrix = np.array([[Mod(0, self.prime), Mod(1, self.prime)], [Mod(1, self.prime), Mod(0, self.prime)]])
+        self.G = self.create_gen_matrix(start_gen_matrix, 0, size-2)
+        super().__init__(self.G, self.prime, compute_coset_leader, verbose)
+
+    def create_gen_matrix(self, gen_matrix : np.ndarray, counter : int, stop : int):
+        if counter == stop:
+            return gen_matrix
+        
+        ones = np.array([Mod(1, self.prime) for _ in range(len(gen_matrix[0]))])
+        zeros = np.array([Mod(0, self.prime) for _ in range(len(gen_matrix[0]))])
+
+        new_gen_matrix = np.vstack(((np.hstack((gen_matrix, gen_matrix))), (np.hstack((zeros, ones)))))
+        return self.create_gen_matrix(new_gen_matrix, counter+1, stop)
+
+if __name__ == "__main__":
+    rmC = Reed_Muller_code(3, 2, verbose=True)

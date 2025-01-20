@@ -42,7 +42,7 @@ class Mod:
         return False
 
     def __repr__(self):
-        return f"({self.a} mod {self.n})"
+        return f"({self.a}m{self.n})"
     
     
 
