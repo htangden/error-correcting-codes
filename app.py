@@ -1,37 +1,29 @@
-from mod_class import Mod
 import numpy as np
-from random import randint
-from code_class import Code
-from helper_funcs import ndarr_to_str, str_to_ndarr, add_noise
+from code_class import Code, Hamming_Code
+from helper_funcs import add_noise, str_to_bits, bits_to_str
 
 
-G = np.array([
-    [1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0],
-    [0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0],
-    [0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 0],
-    [0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0],
-    [0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1],
-    [0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1],
-    [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1],
-], dtype=int)
-
-mod = 2
-code = Code(G, mod, verbose=False, compute_coset_leader=False)
+hCode = Hamming_Code([11, 15], verbose=True)
 
 
-''' CAN ONLY HANDLE ENGLISH ALPHABET AND SPACES (7 bit chars ASCII) '''
-input_message = input("Input: ").replace(" ", "|")
+input_message = input("Input: ")
+bit_message = str_to_bits(input_message)
+
+encoded_message = hCode.encode_message(bit_message)
+
+noisy_encoded_message, nbr_noise = add_noise(encoded_message, 2, 4)
+noisy_str = bits_to_str(np.array([letter[:11] for letter in noisy_encoded_message]).flatten())
+print(f"Changed {nbr_noise} bits.")
+
+decoded_message = hCode.decode_message(noisy_encoded_message)
+decoded_string = bits_to_str(decoded_message)
 
 
-encoded_message = code.encode_message(str_to_ndarr(input_message, mod))
-noisy_encoded_message = add_noise(encoded_message, mod, 5)
-str_noisy_encoded_message = ndarr_to_str(noisy_encoded_message).replace("|", " ")
 
-decoded_message = code.decode_message(noisy_encoded_message)
-str_decoded_message = ndarr_to_str(decoded_message).replace("|", " ")
+print(f"Original Message: {input_message}")
+print(f"Before decoding: {noisy_str}")
+print(f"Decoded Message: {decoded_string}")
 
-print(f"After noise - encoded: {str_noisy_encoded_message}")
-print(f"After noise - decoded: {str_decoded_message}")
 
 
 

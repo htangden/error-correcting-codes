@@ -22,10 +22,7 @@ class Code:
             print("GENERATING MATRIX BEFORE NORMALIZING:")
             print(self.G, "\n")
 
-        arr = np.array([[val.a for val in row] for row in self.G[:,:self.m]])
-        print("a", arr)
-        arr_inv = np.linalg.inv(arr)
-        print(arr_inv)
+
         self.normalize_gen_matrix()
 
         if verbose:
@@ -43,7 +40,8 @@ class Code:
             self.compute_coset_leaders()
             if verbose:
                 print("COMPUTATION COSET LEADERS COMPLETE")
-                print(self.coset_leaders, "\n")
+                print(",\n".join(f"{key}: {value}" for key, value in self.coset_leaders.items()) + "\n")
+
         else:
             with open('data/coset_leader.json', 'r') as file:
                 self.coset_leaders = json.load(file)
@@ -112,6 +110,10 @@ class Code:
         for i in range(floor((self.seperation-1)/2) + 1):
             circle_sum += binom(self.n, i)*(self.prime-1)**i
         return (amount_of_words*circle_sum)/space
+    
+    def pad_bits(self, bits):
+        pad_length = (self.m - (len(bits) % self.m))
+        return np.concatenate([bits, np.array([Mod(0, self.prime)] * pad_length)])
 
     def weight(self, point: np.ndarray) -> int:
         return sum([val.a for val in point])
@@ -127,10 +129,11 @@ class Code:
         return point @ self.H.T
     
     def encode_message(self, message: np.ndarray) -> np.ndarray:
+        message = self.pad_bits(message).reshape(-1, self.m)
         return np.array([chunk @ self.G for chunk in message])
     
     def decode_message(self, message: np.ndarray) -> np.ndarray:
-        return np.array([self.decode_chunk(chunk) for chunk in message], dtype=Mod)
+        return np.array([self.decode_chunk(chunk) for chunk in message.reshape(-1, self.n)], dtype=Mod).flatten()
 
     def decode_chunk(self, message: np.ndarray) -> np.ndarray:
         if self.is_in_code(message):
@@ -141,8 +144,7 @@ class Code:
     
 class Hamming_Code(Code):
 
-    def __init__(self, size: list[int, int], prime: int, compute_coset_leader = True, verbose = False):
-        self.prime = prime
+    def __init__(self, size: list[int, int], compute_coset_leader = True, verbose = False):
         self.m = size[0]
         self.n = size[1]
         if 2**(self.n-self.m)-1 != self.n:
@@ -150,35 +152,37 @@ class Hamming_Code(Code):
 
         self.gen_hamming_gen_matrix()
 
-        super().__init__(self.G, self.prime, compute_coset_leader=compute_coset_leader, verbose=verbose)
-
+        super().__init__(self.G, 2, compute_coset_leader=compute_coset_leader, verbose=verbose)
 
     
     def gen_hamming_gen_matrix(self):
-        syndromes =  [[Mod(value, self.prime) for value in point] for point in list(itertools.product(range(self.prime), repeat=self.n-self.m))]
+        syndromes =  [[Mod(value, 2) for value in point] for point in list(itertools.product(range(2), repeat=self.n-self.m))]
         a = -np.array([syndrome for syndrome in syndromes if self.weight(syndrome)>1])
 
-        identity = np.array([[Mod(1 if i == j else 0, self.prime) for j in range(self.m)] for i in range(self.m)], dtype=Mod)
+        identity = np.array([[Mod(1 if i == j else 0, 2) for j in range(self.m)] for i in range(self.m)], dtype=Mod)
         self.G = np.hstack((identity, a))
 
 
 class Reed_Muller_code(Code):
 
-    def __init__(self, size: int, prime: int, compute_coset_leader = True, verbose = False):
-        self.prime = prime
-        start_gen_matrix = np.array([[Mod(0, self.prime), Mod(1, self.prime)], [Mod(1, self.prime), Mod(0, self.prime)]])
+    def __init__(self, size: int, compute_coset_leader = True, verbose = False):
+
+        start_gen_matrix = np.array([[Mod(1 if i == j else 0, 2) for j in range(3)] for i in range(3)], dtype=Mod)
+        start_gen_matrix = np.hstack((start_gen_matrix, np.array([[Mod(1, 2)], [Mod(1, 2)], [Mod(1, 2)]])))
+        
         self.G = self.create_gen_matrix(start_gen_matrix, 0, size-2)
-        super().__init__(self.G, self.prime, compute_coset_leader, verbose)
+        super().__init__(self.G, 2, compute_coset_leader, verbose)
 
     def create_gen_matrix(self, gen_matrix : np.ndarray, counter : int, stop : int):
         if counter == stop:
             return gen_matrix
         
-        ones = np.array([Mod(1, self.prime) for _ in range(len(gen_matrix[0]))])
-        zeros = np.array([Mod(0, self.prime) for _ in range(len(gen_matrix[0]))])
+        ones = np.array([Mod(1, 2) for _ in range(len(gen_matrix[0]))])
+        zeros = np.array([Mod(0, 2) for _ in range(len(gen_matrix[0]))])
 
         new_gen_matrix = np.vstack(((np.hstack((gen_matrix, gen_matrix))), (np.hstack((zeros, ones)))))
         return self.create_gen_matrix(new_gen_matrix, counter+1, stop)
+
 
 if __name__ == "__main__":
     rmC = Reed_Muller_code(3, 2, verbose=True)
