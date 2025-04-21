@@ -1,12 +1,57 @@
 import numpy as np
-from mod_class import Mod
 import json
-from gauss import gauss_elimination_inverse_mod
 import itertools
 import sys
 from math import floor
 from random import randint
 from scipy.special import binom
+
+class Mod:
+    def __init__(self, a: int, n: int):
+        self.a = a%n
+        self.n = n
+
+    def __add__(self, other_number):
+        if isinstance(other_number, Mod):
+            if self.n == other_number.n:
+                return Mod((self.a + other_number.a) % self.n, self.n)
+        else:
+            return False
+    
+    def __sub__(self, other):
+        if isinstance(other, Mod):
+            return Mod(self.a - other.a, self.n)
+        return False
+        
+    def __mul__(self, other):
+        if isinstance(other, Mod):
+            if self.n == other.n:
+                return Mod((self.a * other.a) % self.n, self.n)
+        else: 
+            return False
+
+    __rmul__ = __mul__
+
+    def __truediv__(self, other):
+        if isinstance(other, Mod):
+            inv = pow(other.a, -1, self.n)
+            return Mod(self.a * inv, self.n)
+        return False
+    
+    def __neg__(self):
+        return Mod(-self.a, self.n)
+        
+    def __str__(self):
+        return f"({self.a} mod {self.n})"
+    
+    def __eq__(self, other):
+        if isinstance(other, Mod):
+            return self.a == other.a and self.n == other.n
+        return False
+
+    def __repr__(self):
+        return f"({self.a}m{self.n})"
+    
 
 
 class Code:
@@ -59,7 +104,7 @@ class Code:
     # make gen matrix of type [I | A]
     def normalize_gen_matrix(self):
         A = self.G[:,:self.m]
-        A_inv = gauss_elimination_inverse_mod(A)
+        A_inv = self.gauss_elimination_inverse_mod(A)
         self.G = A_inv @ self.G
 
     # from gen matrix create control matrix [-A | I]
@@ -177,6 +222,42 @@ class Code:
         encoded_str = self.bits_to_str([encoded_message[i] for i in range(len(encoded_message)) if i%self.n<self.m ])
 
         return encoded_message, encoded_str, counter
+    
+    def gauss_elimination_inverse_mod(self, matrix):
+        n = matrix.shape[0]
+
+        # Ensure the matrix is square
+        if matrix.shape[0] != matrix.shape[1]:
+            raise ValueError("Only square matrices can be inverted.")
+
+        # Create an augmented matrix with the identity matrix on the right-hand side
+        prime = matrix[0, 0].n  # Assuming all elements are Mod with the same prime
+        identity = np.array([[Mod(1 if i == j else 0, prime) for j in range(n)] for i in range(n)], dtype=object)
+        augmented = np.hstack((matrix, identity))
+
+        for i in range(n):
+            # Pivot: Make sure the diagonal element is not zero
+            if augmented[i, i] == Mod(0, prime):
+                # Find a row below the current one with a nonzero value in this column and swap
+                for j in range(i + 1, n):
+                    if augmented[j, i] != Mod(0, prime):
+                        augmented[[i, j]] = augmented[[j, i]]
+                        break
+                else:
+                    raise ValueError("Matrix is singular and cannot be inverted.")
+
+            # Normalize the pivot row
+            augmented[i] = [x / augmented[i, i] for x in augmented[i]]
+
+            # Eliminate the other entries in this column
+            for j in range(n):
+                if i != j:
+                    factor = augmented[j, i]
+                    augmented[j] = [augmented[j, k] - factor * augmented[i, k] for k in range(2 * n)]
+
+        # The right-hand side of the augmented matrix is now the inverse
+        inverse = augmented[:, n:]
+        return inverse
 
 class Hamming_Code(Code):
 
