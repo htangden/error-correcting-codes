@@ -1,23 +1,14 @@
-import numpy as np
 from code_class import Code, Hamming_Code
-from helper_funcs import add_noise, str_to_bits, bits_to_str
 
-
-hCode = Hamming_Code([11, 15], verbose=True)
-
+hCode = Hamming_Code([11, 15])
 
 input_message = input("Input: ")
-bit_message = str_to_bits(input_message)
 
-encoded_message = hCode.encode_message(bit_message)
+encoded_message = hCode.encode_str(input_message)
 
-noisy_encoded_message, nbr_noise = add_noise(encoded_message, 2, 4)
-noisy_str = bits_to_str(np.array([letter[:11] for letter in noisy_encoded_message]).flatten())
-print(f"Changed {nbr_noise} bits.")
+noisy_encoded_message, noisy_str, nbr_noise = hCode.add_noise(encoded_message, 4)
 
-decoded_message = hCode.decode_message(noisy_encoded_message)
-decoded_string = bits_to_str(decoded_message)
-
+decoded_string = hCode.decode_to_str(noisy_encoded_message)
 
 
 print(f"Original Message: {input_message}")

@@ -5,6 +5,7 @@ from gauss import gauss_elimination_inverse_mod
 import itertools
 import sys
 from math import floor
+from random import randint
 from scipy.special import binom
 
 
@@ -52,7 +53,7 @@ class Code:
 
         self.pack_density = self.compute_pack_density()
         if verbose:
-            print(f"PACKING DENSITY\n{int(self.pack_density*100)}%")
+            print(f"PACKING DENSITY\n{int(self.pack_density*100)}%\n")
 
 
     # make gen matrix of type [I | A]
@@ -128,12 +129,35 @@ class Code:
     def compute_syndrome(self, point) -> np.ndarray:
         return point @ self.H.T
     
+    def str_to_bits(self, s):
+        return np.array([int(b) for char in s for b in f"{ord(char):08b}"])
+
+    def bits_to_str(self, bits):
+        chars = [bits[i:i+8] for i in range(0, len(bits), 8)]
+        return ''.join(chr(int(''.join(map(str, c)), 2)) for c in chars if len(c) == 8)
+
+    def encode_str(self, message_str: str) -> np.ndarray:
+        return self.encode_message(self.str_to_bits(message_str))
+
     def encode_message(self, message: np.ndarray) -> np.ndarray:
+        message = [Mod(val, self.prime) for val in message]
+
         message = self.pad_bits(message).reshape(-1, self.m)
-        return np.array([chunk @ self.G for chunk in message])
+        encoded = []
+        for chunk in message:
+            encoded += list(chunk @ self.G)
+
+        encoded = [val.a for val in encoded]
+        return np.array(encoded)
     
+    def decode_to_str(self, message: np.ndarray) -> str:
+        return self.bits_to_str(self.decode_message(message))
+
     def decode_message(self, message: np.ndarray) -> np.ndarray:
-        return np.array([self.decode_chunk(chunk) for chunk in message.reshape(-1, self.n)], dtype=Mod).flatten()
+        message = np.array([Mod(val, self.prime) for val in message])
+        message = message.reshape(-1, self.n)
+        decoded = np.array([self.decode_chunk(chunk) for chunk in message.reshape(-1, self.n)], dtype=Mod).flatten()
+        return [int(val.a) for val in decoded]
 
     def decode_chunk(self, message: np.ndarray) -> np.ndarray:
         if self.is_in_code(message):
@@ -142,6 +166,18 @@ class Code:
             syndrome = self.compute_syndrome(message)
             return message[:self.m] + self.get_coset_leader(syndrome)[:self.m]
     
+    def add_noise(self, encoded_message: np.ndarray, prob_noise: int) -> np.ndarray:
+        counter = 0
+
+        for i in range(len(encoded_message)):
+            if randint(1, 100) < prob_noise:
+                counter += 1
+                encoded_message[i] = randint(0, self.prime-1)
+        
+        encoded_str = self.bits_to_str([encoded_message[i] for i in range(len(encoded_message)) if i%self.n<self.m ])
+
+        return encoded_message, encoded_str, counter
+
 class Hamming_Code(Code):
 
     def __init__(self, size: list[int, int], compute_coset_leader = True, verbose = False):
